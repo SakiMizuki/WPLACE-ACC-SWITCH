@@ -8248,7 +8248,50 @@
   async function createWasmToken(regionX,regionY, payload) {
     try {
       // Load the Pawtect module and WASM
-      const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+
+      async function getModURL(update) {
+        if (update === true || localStorage.getItem('pawtect-wasm-location') === null) {
+          const rootHTML = (await (await fetch(window.location.href)).text()).split('\n')
+
+          for (const line of rootHTML) {
+            if (line.includes('<link rel="modulepreload" href="./_app/immutable/chunks/')) {
+              const url = line.substring(line.indexOf('href="') + 7, line.length - 2)
+              const content = (await (await fetch(window.location.href + url)).text())
+
+              if (content.includes('pawtect_wasm_bg.wasm')) {
+                console.log(`✅ Found the Pawtect module and WASM at: ${url}`)
+                localStorage.setItem('pawtect-wasm-location', url)
+                return url
+              }
+            }
+          }
+
+          return null
+        }
+
+        const url = localStorage.getItem('pawtect-wasm-location')
+        if (url !== null) {
+          console.log(`✅ Found the Pawtect module and WASM at: ${url} (Cached)`)
+        }
+
+        return url
+      }
+
+      let modURL = await getModURL()
+      if (modURL === null) {
+        console.log('❌ Failed to locate the Pawtect module and WASM')
+        return null
+      }
+
+      let mod
+      try {
+        mod = await import(modURL);
+      } catch (err) {
+        console.error(err)
+        await getModURL(true)
+        return await createWasmToken(regionX, regionY, payload)
+      }
+
       let wasm;
       try {
         wasm = await mod._();
