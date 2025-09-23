@@ -298,6 +298,7 @@
             captchaFailed: "❌ Turnstile token generation failed. Trying fallback method...",
             automation: "Automation",
             noChargesThreshold: "⌛ Waiting for charges to reach {threshold}. Currently {current}. Next in {time}...",
+            swappingAccount: "Swapping to account {accountNum}...",
         },
         ru: {
             title: "WPlace Авто-Изображение",
@@ -371,6 +372,7 @@
             captchaFailed: "❌ Не удалось сгенерировать Turnstile токен. Пробую резервный метод...",
             automation: "Автоматизация",
             noChargesThreshold: "⌛ Ожидание зарядов до {threshold}. Сейчас {current}. Следующий через {time}...",
+            swappingAccount: "Смена аккаунта на {accountNum}...",
         },
         pt: {
             title: "WPlace Auto-Image",
@@ -444,6 +446,7 @@
             captchaFailed: "❌ Falha ao resolver CAPTCHA. Pinte um pixel manualmente.",
             automation: "Automação",
             noChargesThreshold: "⌛ Aguardando cargas atingirem {threshold}. Atual: {current}. Próxima em {time}...",
+            swappingAccount: "Trocando para a conta {accountNum}...",
         },
         vi: {
             title: "WPlace Auto-Image",
@@ -517,6 +520,7 @@
             captchaFailed: "❌ Giải CAPTCHA tự động thất bại. Vui lòng vẽ một pixel thủ công.",
             automation: "Tự động hóa",
             noChargesThreshold: "⌛ Đang chờ số lần sạc đạt {threshold}. Hiện tại {current}. Lần tiếp theo trong {time}...",
+            swappingAccount: "Đang chuyển sang tài khoản {accountNum}...",
         },
         fr: {
             title: "WPlace Auto-Image",
@@ -590,6 +594,7 @@
             captchaFailed: "❌ Échec de l'Auto-CAPTCHA. Peignez un pixel manuellement.",
             automation: "Automatisation",
             noChargesThreshold: "⌛ En attente que les charges atteignent {threshold}. Actuel: {current}. Prochaine dans {time}...",
+            swappingAccount: "Changement de compte vers {accountNum}...",
         },
         id: {
             title: "WPlace Auto-Image",
@@ -663,6 +668,7 @@
             captchaFailed: "❌ Gagal menyelesaikan CAPTCHA. Lukis satu piksel secara manual.",
             automation: "Automasi",
             noChargesThreshold: "⌛ Menunggu muatan mencapai {threshold}. Saat ini: {current}. Berikutnya dalam {time}...",
+            swappingAccount: "Beralih ke akun {accountNum}...",
         },
         tr: {
             title: "WPlace Otomatik-Resim",
@@ -734,6 +740,7 @@
             captchaFailed: "❌ Oto-CAPTCHA başarısız oldu. Bir pikseli manuel boyayın.",
             automation: "Otomasyon",
             noChargesThreshold: "⌛ Hakların {threshold} seviyesine ulaşması bekleniyor. Şu anda {current}. Sonraki {time} içinde...",
+            swappingAccount: "{accountNum} numaralı hesaba geçiliyor...",
         },
         zh: {
             title: "WPlace 自动图像",
@@ -810,6 +817,7 @@
             captchaFailed: "❌ 令牌生成失败。尝试回退方法...",
             automation: "自动化",
             noChargesThreshold: "⌛ 等待次数达到 {threshold}。当前 {current}。下次在 {time}...",
+            swappingAccount: "正在切换到账户 {accountNum}...",
         },
         "zh-tw": {
             title: "WPlace 自動圖像",
@@ -886,6 +894,7 @@
             captchaFailed: "❌ 令牌產生失敗。嘗試回退方法...",
             automation: "自動化",
             noChargesThreshold: "⌛ 等待次數達到 {threshold}。目前 {current}。下次在 {time}...",
+            swappingAccount: "正在切換到帳戶 {accountNum}...",
         },
         ja: {
             title: "WPlace 自動画像",
@@ -962,6 +971,7 @@
             captchaFailed: "❌ トークン生成失敗。フォールバックを試行...",
             automation: "自動化",
             noChargesThreshold: "⌛ チャージ {threshold} を待機中。現在 {current}。次は {time} 後...",
+            swappingAccount: "アカウント {accountNum} に切り替え中...",
         },
         ko: {
             title: "WPlace 자동 이미지",
@@ -1038,6 +1048,7 @@
             captchaFailed: "❌ 토큰 생성 실패. 폴백 시도...",
             automation: "자동화",
             noChargesThreshold: "⌛ 횟수가 {threshold} 에 도달할 때까지 대기 중. 현재 {current}. 다음 {time} 후...",
+            swappingAccount: "계정 {accountNum}으로 전환 중...",
         },
     }
 
@@ -7466,89 +7477,92 @@
 
                         pixelBatch.pixels = [];
                     }
-                    if (!CONFIG.autoSwap) {
-                        while (state.currentCharges < state.cooldownChargeThreshold && !state.stopFlag) {
-                            const { charges, cooldown } = await WPlaceService.getCharges();
-                            state.currentCharges = Math.floor(charges);
-                            state.cooldown = cooldown;
-
-                            if (state.currentCharges >= state.cooldownChargeThreshold) {
-                                // Edge-trigger a notification the instant threshold is crossed
-                                NotificationManager.maybeNotifyChargesReached(true);
-                                updateStats();
-                                break;
+                    // Cooldown / Account Swap Logic
+                    if (state.currentCharges < state.cooldownChargeThreshold && !state.stopFlag) {
+                        if (!CONFIG.autoSwap) {
+                            // Standard cooldown wait
+                            while (state.currentCharges < state.cooldownChargeThreshold && !state.stopFlag) {
+                                const { charges, cooldown } = await WPlaceService.getCharges();
+                                state.currentCharges = Math.floor(charges);
+                                state.cooldown = cooldown;
+                                if (state.currentCharges >= state.cooldownChargeThreshold) {
+                                    NotificationManager.maybeNotifyChargesReached(true);
+                                    updateStats();
+                                    break;
+                                }
+                                saveBtn.disabled = false;
+                                updateUI("noChargesThreshold", "warning", {
+                                    time: Utils.formatTime(state.cooldown),
+                                    threshold: state.cooldownChargeThreshold,
+                                    current: state.currentCharges
+                                });
+                                await updateStats();
+                                Utils.performSmartSave();
+                                await Utils.sleep(state.cooldown);
                             }
-
-                            // Enable save button during cooldown wait
-                            saveBtn.disabled = false;
-
-                            updateUI("noChargesThreshold", "warning", {
-                                time: Utils.formatTime(state.cooldown),
-                                threshold: state.cooldownChargeThreshold,
-                                current: state.currentCharges
-                            });
-                            await updateStats();
-
-                            // Allow auto save during cooldown
-                            Utils.performSmartSave();
-
-                            await Utils.sleep(state.cooldown);
-                        }
-                    }
-                    else {
-                        if (state.currentCharges < state.cooldownChargeThreshold && !state.stopFlag) {
-                            console.log("⚠️ Charges too low, swapping to next account...");
-
+                        } else {
+                            // Account swap logic
                             const accounts = JSON.parse(localStorage.getItem("accounts")) || [];
-                            if (accounts.length === 0) {
-                                console.warn("❌ No accounts available, stopping painting.");
-                                state.stopFlag = true;
-                                return;
+                            if (accounts.length <= 1) {
+                                console.warn("❌ Auto-swap requires at least two accounts. Waiting for cooldown instead.");
+                                while (state.currentCharges < state.cooldownChargeThreshold && !state.stopFlag) {
+                                    const { charges, cooldown } = await WPlaceService.getCharges();
+                                    state.currentCharges = Math.floor(charges);
+                                    state.cooldown = cooldown;
+                                    if (state.currentCharges >= state.cooldownChargeThreshold) { break; }
+                                    updateUI("noChargesThreshold", "warning", { time: Utils.formatTime(state.cooldown), threshold: state.cooldownChargeThreshold, current: state.currentCharges });
+                                    await updateStats();
+                                    await Utils.sleep(state.cooldown);
+                                }
+                                continue;
                             }
 
+                            const { id: originalId } = await WPlaceService.getCharges();
                             state.accountIndex = (state.accountIndex + 1) % accounts.length;
-                            console.log("🔄 Switching to account index:", state.accountIndex);
-
                             const nextToken = accounts[state.accountIndex];
-                            console.log("🔑 Next token:", nextToken);
 
+                            console.log(`🔄 Attempting to switch to account index: ${state.accountIndex}`);
                             if (!nextToken) {
-                                console.warn("⚠️ Invalid token, skipping...");
-                                return;
+                                console.warn("⚠️ Invalid token at index, skipping...");
+                                continue;
                             }
 
                             swapAccountTrigger(nextToken);
+                            updateUI("swappingAccount", "default", { accountNum: state.accountIndex + 1 });
 
                             let maxRetries = 20;
-                            let retryCount = 0;
                             let swapSuccess = false;
 
-                            while (!swapSuccess && retryCount < maxRetries) {
-                                console.log(`⏳ Waiting for account swap... (Attempt ${retryCount + 1}/${maxRetries})`);
-
-                                // Wait for a short period before checking.
-                                await new Promise(resolve => setTimeout(resolve, 1000));
+                            for (let i = 0; i < maxRetries; i++) {
+                                if (state.stopFlag) break;
+                                console.log(`⏳ Waiting for account swap confirmation... (Attempt ${i + 1}/${maxRetries})`);
+                                await Utils.sleep(1500);
 
                                 try {
-                                    await fetchAccount();
-
-                                    console.log("✅ Account swap confirmed.");
-                                    swapSuccess = true;
+                                    const { id: newId, charges, cooldown, max } = await WPlaceService.getCharges();
+                                    if (newId && newId !== originalId) {
+                                        console.log(`✅ Account swap confirmed! New ID: ${newId}`);
+                                        state.currentCharges = Math.floor(charges);
+                                        state.cooldown = cooldown;
+                                        state.maxCharges = Math.floor(max) > 1 ? Math.floor(max) : state.maxCharges;
+                                        swapSuccess = true;
+                                        await updateStats();
+                                        break;
+                                    }
                                 } catch (error) {
-                                    console.warn("❌ Account swap not yet successful. Retrying...", error);
-                                    retryCount++;
+                                    console.warn("❌ Error checking for swap, retrying...", error);
                                 }
                             }
 
                             if (swapSuccess) {
-
-                                const { charges, cooldown } = await WPlaceService.getCharges();
-                                state.currentCharges = Math.floor(charges);
-                                state.cooldown = cooldown;
                                 Utils.performSmartSave();
-                                updateStats();
-                            } else {
-                                console.error("❌ Failed to swap account after multiple retries. Stopping loop.");
+                                updateUI("paintingProgress", "default", {
+                                    painted: state.paintedPixels,
+                                    total: state.totalPixels,
+                                });
+                            } else if (!state.stopFlag) {
+                                console.error("❌ Failed to confirm account swap after multiple retries. Stopping painting.");
+                                updateUI("error", "error", { message: "Account swap failed." });
                                 state.stopFlag = true;
                             }
                         }
@@ -7775,6 +7789,7 @@
             }
 
             const { id: originalId } = await WPlaceService.getCharges();
+            let idBeforeSwap = originalId;
             state.allAccountsInfo = [];
             renderAccountsList();
 
@@ -7786,20 +7801,22 @@
                 let retries = 0;
                 let swapped = false;
                 let fetchedInfo = null;
-                while (retries < 5 && !swapped) {
-                    await Utils.sleep(1000);
+                while (retries < 10 && !swapped) {
+                    await Utils.sleep(1500);
                     try {
                         fetchedInfo = await WPlaceService.fetchCheck();
-                        if (fetchedInfo.ID) swapped = true;
-                    } catch (e) { retries++; }
+                        if (fetchedInfo.ID && fetchedInfo.ID !== idBeforeSwap) {
+                            swapped = true;
+                        }
+                    } catch (e) { /* ignore */ }
+                    retries++;
                 }
 
                 if (swapped) {
-                    await fetchAccount();
-                    // await purchase("max_charges");
                     const displayName = accountNames[token] || `Account ${i + 1}`;
                     if (fetchedInfo.ID === originalId) originalToken = token;
                     state.allAccountsInfo.push({ ...fetchedInfo, token, displayName, isCurrent: fetchedInfo.ID === originalId });
+                    idBeforeSwap = fetchedInfo.ID; // Update for next iteration
                 } else {
                     const displayName = accountNames[token] || `Account ${i + 1}`;
                     state.allAccountsInfo.push({ token, ID: `...${token.slice(-4)}`, displayName, error: 'Failed to fetch' });
