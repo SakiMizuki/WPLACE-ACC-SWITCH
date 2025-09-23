@@ -1683,6 +1683,7 @@ function getText(key, params) {
       try {
         const res = await fetch("https://backend.wplace.live/me", {
           credentials: "include",
+          cache: "no-cache",
         })
         const data = await res.json()
         return {
@@ -1708,6 +1709,7 @@ function getText(key, params) {
       try {
         const res = await fetch("https://backend.wplace.live/me", {
           credentials: "include",
+          cache: "no-cache",
         })
         const data = await res.json()
         return {
